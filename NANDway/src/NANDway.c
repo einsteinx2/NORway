@@ -10,12 +10,21 @@ see file COPYING or http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <stdio.h>
 #include "delay_x.h"
 #include "usb_serial.h"
+#include "uart_serial.h"
 //#include "clz_ctz.h"
 
+#define ENABLE_UART_DEBUG_OUTPUT 1
+#if ENABLE_UART_DEBUG_OUTPUT
+	#define DEBUG_LOG(string) UART_tx_str(string)
+#else
+	#define DEBUG_LOG(string) 
+#endif
+
 #define VERSION_MAJOR			0
-#define VERSION_MINOR			65
+#define VERSION_MINOR			67
 
 #define BUILD_DUAL_NAND			1
 #define BUILD_SIGNAL_BOOSTER	2
@@ -43,6 +52,8 @@ enum {
 	CMD_NAND1_READPAGE,
 	CMD_NAND1_WRITEPAGE,
 	CMD_NAND1_ERASEBLOCK,
+	CMD_TEST_WRITE,
+	CMD_DEBUG_LOG
 } cmd_t;
 
 /*! \brief NAND flash read page command start. */
@@ -353,6 +364,13 @@ uint8_t nand_read_id(nand_port *nandp)
 	//size_data = 0x9a;
 	//plane_data = 0x74;
 
+	//Hynix H27U4G8F2D
+	// maker_code = 0xAD;
+	// device_code = 0xDC;
+	// chip_data = 0x90;
+	// size_data = 0x95;
+	// plane_data = 0x54;
+
 	nandp->info.raw_data[0] = maker_code;
 	nandp->info.raw_data[1] = device_code;
 	nandp->info.raw_data[2] = chip_data;
@@ -581,12 +599,16 @@ uint8_t nand_status(nand_port *nandp) {
 int8_t nand_write_page(nand_port *nandp) {
 	uint16_t i;
 	int16_t in_data;
+
+	// DEBUG_LOG("nwp: 1\n");
 	
 	nand_enable(nandp);
 
 	/* Serial Data Input command */
 	/* CLE - high & CE# - low */
 	NAND_COMMAND(nandp, NAND_COMMAND_PAGEPROG1);
+
+	// DEBUG_LOG("nwp: 2\n");
 
 	/* address */
 	/* ALE on & CLE off */ 
@@ -610,26 +632,54 @@ int8_t nand_write_page(nand_port *nandp) {
 		NAND_IO_SET(nandp, buf_addr[2]);
 	}
 	NAND_ALE_LOW(nandp);
+
+	// DEBUG_LOG("nwp: 3\n");
 	
-	for (i = 0; i < PAGE_PLUS_RAS_SZ; i++) {
+	char str[100];
+	uint16_t num_delays = 0;
+	i = 0;
+	while (i < PAGE_PLUS_RAS_SZ) {
 		if ((in_data = usb_serial_getchar()) != -1) {
+			// sprintf(str1, "%02x", in_data);
+			// DEBUG_LOG(str1);
 			NAND_IO_SET(nandp, in_data);
+			i++;
 		}
-		else {
+		else if (num_delays > 1000) {
+			DEBUG_LOG("nwp: num_delays > 1000, bailing\n");
 			break;
 		}
+		else {
+			num_delays++;
+			// sprintf(str, "nwp: buffer underrun at i = %u delays = %d\n", i, num_delays);
+			// DEBUG_LOG(str1);
+			// DEBUG_LOG("nwp: buffer underrun, waiting 100ms\n");
+			_delay_us(1); // Delay not needed when logging
+		}
 	}
+
+	// DEBUG_LOG("nwp: 4\n");
 
 	/* Page Program confirm command */
 	NAND_COMMAND(nandp, NAND_COMMAND_PAGEPROG2);
 
+	// DEBUG_LOG("nwp: 5\n");
+
+	// sprintf(str, "nwp: i = %u  PAGE_PLUS_RAS_SZ = %u  num_delays: %u\n", i, PAGE_PLUS_RAS_SZ, num_delays);
+	// DEBUG_LOG(str);
+
 	if (i < PAGE_PLUS_RAS_SZ) { // timeout
+		DEBUG_LOG("nwp: timeout\n");
 		return -1;		// and exit
 	}
+
+	// DEBUG_LOG("nwp: 6\n");
 
 	/* wait for the internal controller to finish the program command 
 		TBD - up to 200us */
 	NAND_BUSY_WAIT(nandp, 5.0);
+
+	// DEBUG_LOG("nwp: 7\n");
 
 	return !(nand_status(nandp) & NAND_STATUS_FAIL);
 }
@@ -781,8 +831,78 @@ void handle_read_id(nand_port *nand) {
 		}
 	}
 }
+
+int8_t nand_write_test_page(nand_port *nandp) {
+	uint16_t i;
 	
-void bootloader() {
+	nand_enable(nandp);
+
+	/* Serial Data Input command */
+	/* CLE - high & CE# - low */
+	NAND_COMMAND(nandp, NAND_COMMAND_PAGEPROG1);
+
+	/* address */
+	/* ALE on & CLE off */ 
+	NAND_ALE_HIGH(nandp);
+	if ((nandp->info.maker_code == 0xAD) && (nandp->info.device_code == 0x73)) {
+		NAND_IO_SET(nandp, 0);
+		NAND_IO_SET(nandp, buf_addr[0]);
+		NAND_IO_SET(nandp, buf_addr[1]);
+	}
+	else if ((nandp->info.maker_code == 0xEC) && (nandp->info.device_code == 0x79)) { // Samsung K9T1G08U0M
+		NAND_IO_SET(nandp, 0);
+		NAND_IO_SET(nandp, buf_addr[0]);
+		NAND_IO_SET(nandp, buf_addr[1]);
+		NAND_IO_SET(nandp, buf_addr[2]);
+	}
+	else {
+		NAND_IO_SET(nandp, 0);
+		NAND_IO_SET(nandp, 0);
+		NAND_IO_SET(nandp, buf_addr[0]);
+		NAND_IO_SET(nandp, buf_addr[1]);
+		NAND_IO_SET(nandp, buf_addr[2]);
+	}
+	NAND_ALE_LOW(nandp);
+	
+	for (i = 0; i < PAGE_PLUS_RAS_SZ; i++) {
+		// Hard code value to write just to confirm it can write anything
+		NAND_IO_SET(nandp, 0xAB);
+	}
+
+	/* Page Program confirm command */
+	NAND_COMMAND(nandp, NAND_COMMAND_PAGEPROG2);
+
+	if (i < PAGE_PLUS_RAS_SZ) { // timeout
+		return -1;		// and exit
+	}
+
+	/* wait for the internal controller to finish the program command 
+		TBD - up to 200us */
+	NAND_BUSY_WAIT(nandp, 5.0);
+
+	return !(nand_status(nandp) & NAND_STATUS_FAIL);
+}
+
+void handle_write_test_page(nand_port *nand) {
+	int8_t res;
+
+	// Hard code address to first page
+	buf_addr[0] = 0;
+	buf_addr[1] = 0;
+	buf_addr[2] = 0;
+	
+	res = nand_write_test_page(nand);
+	if (res > 0)
+		usb_serial_putchar('K');
+	else if (res < 0)
+		usb_serial_putchar('R');
+	else
+		usb_serial_putchar('V');
+}
+	
+void bootloader() {	
+	return;
+
 	cli();
 	// disable watchdog, if enabled
 	// disable all peripherals
@@ -838,6 +958,9 @@ int main(void) {
 	// and do whatever it does to actually be ready for input
 	_delay_ms(1000);
 
+	// Initialize UART serial debug output
+	UART_init();
+
 	while (1) {
 		// discard anything that was received prior.  Sometimes the
 		// operating system or other software will send a modem
@@ -850,10 +973,12 @@ int main(void) {
 
 			switch (command) {
 			case CMD_PING1:
+				DEBUG_LOG("Command: CMD_PING1\n");
 				usb_serial_putchar(VERSION_MAJOR);
 				break;
 				
 			case CMD_PING2:
+				DEBUG_LOG("Command: CMD_PING2\n");
 				freemem = freeRam();
 				usb_serial_putchar(VERSION_MINOR);
 				usb_serial_putchar((freemem >> 8) & 0xFF);
@@ -861,25 +986,31 @@ int main(void) {
 				break;
 				
 			case CMD_BOOTLOADER:
+				DEBUG_LOG("Command: CMD_BOOTLOADER\n");
 				bootloader();
 				break;
 				
 			case CMD_IO_LOCK:
+				DEBUG_LOG("Command: CMD_IO_LOCK\n");
 				break;
 				
 			case CMD_IO_RELEASE:
+				DEBUG_LOG("Command: CMD_IO_RELEASE\n");
 				releaseports();
 				break;
 				
 			case CMD_PULLUPS_DISABLE:
+				DEBUG_LOG("Command: CMD_PULLUPS_DISABLE\n");
 				IO_PULLUPS = 0;
 				break;
 				
 			case CMD_PULLUPS_ENABLE:
+				DEBUG_LOG("Command: CMD_PULLUPS_ENABLE\n");
 				IO_PULLUPS = 0xFF;
 				break;
 				
 			case CMD_NAND0_ID:
+				DEBUG_LOG("Command: CMD_NAND0_ID\n");
 				usb_serial_putchar('Y');
 				handle_read_id(&nand0);
 				#if BUILD_VERSION == BUILD_SIGNAL_BOOSTER
@@ -888,6 +1019,7 @@ int main(void) {
 				break;
 				
 			case CMD_NAND0_READPAGE:
+				DEBUG_LOG("Command: CMD_NAND0_READPAGE\n");
 				handle_read_page(&nand0);
 				#if BUILD_VERSION == BUILD_SIGNAL_BOOSTER
 					releaseports();
@@ -895,6 +1027,7 @@ int main(void) {
 				break;
 				
 			case CMD_NAND0_WRITEPAGE:
+				DEBUG_LOG("Command: CMD_NAND0_WRITEPAGE\n");
 				handle_write_page(&nand0);
 				#if BUILD_VERSION == BUILD_SIGNAL_BOOSTER
 					releaseports();
@@ -902,6 +1035,7 @@ int main(void) {
 				break;
 				
 			case CMD_NAND0_ERASEBLOCK:
+				DEBUG_LOG("Command: CMD_NAND0_ERASEBLOCK\n");
 				handle_erase_block(&nand0);
 				#if BUILD_VERSION == BUILD_SIGNAL_BOOSTER
 					releaseports();
@@ -909,6 +1043,7 @@ int main(void) {
 				break;
 				
 			case CMD_NAND1_ID:
+				DEBUG_LOG("Command: CMD_NAND1_ID\n");
 				#if BUILD_VERSION == BUILD_DUAL_NAND
 					usb_serial_putchar('Y');
 					handle_read_id(&nand1);
@@ -918,23 +1053,38 @@ int main(void) {
 				break;
 				
 			case CMD_NAND1_READPAGE:
+				DEBUG_LOG("Command: CMD_NAND1_READPAGE\n");
 				#if BUILD_VERSION == BUILD_DUAL_NAND
 					handle_read_page(&nand1);
 				#endif
 				break;
 				
 			case CMD_NAND1_WRITEPAGE:
+				DEBUG_LOG("Command: CMD_NAND1_WRITEPAGE\n");
 				#if BUILD_VERSION == BUILD_DUAL_NAND
 					handle_write_page(&nand1);
 				#endif
 				break;
 				
 			case CMD_NAND1_ERASEBLOCK:
+				DEBUG_LOG("Command: CMD_NAND1_ERASEBLOCK\n");
 				#if BUILD_VERSION == BUILD_DUAL_NAND
 					handle_erase_block(&nand1);
 				#endif
 				break;
-				
+
+			case CMD_TEST_WRITE:
+				DEBUG_LOG("Command: CMD_TEST_WRITE\n");
+				handle_write_test_page(&nand0);
+				#if BUILD_VERSION == BUILD_SIGNAL_BOOSTER
+					releaseports();
+				#endif
+				break;
+
+			case CMD_DEBUG_LOG:
+				DEBUG_LOG("Command: CMD_DEBUG_LOG\n");
+				break;
+
 			default:
 				break;
 			}
