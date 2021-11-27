@@ -141,7 +141,7 @@ uint8_t		buf_addr[BUF_SIZE_ADDR];
 typedef struct _nand_info {
 	uint8_t raw_data[5];
 	
-	/*! \brief Out of bounce layout information. */
+	/*! \brief Out of bounds layout information. */
 	uint16_t	oob_size;
 
 	/*! \brief Maker code. */
