@@ -156,9 +156,14 @@ class NANDFlasher(TeensySerial):
 			sys.exit(1)
 
 		nand_info = self.read(25)
+		# print(f"nand_info type: {type(nand_info)}")
+
+		# for byte in nand_info:
+		# 	print("byte: 0x%02X"%(byte))
 		
 		#print "%x, %x, %x, %x, %x"%(self.MF_ID, self.DEVICE_ID, info1, info, info3)
-		print("Raw ID data: 0x%02x 0x%02x 0x%02x 0x%02x 0x%02x"%(nand_info[0], nand_info[1], nand_info[2], nand_info[3], nand_info[4]))
+		print("Raw ID data: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X"%(nand_info[0], nand_info[1], nand_info[2], nand_info[3], nand_info[4]))
+		# print(f"nand_info: {nand_info}")
 
 		self.MF_ID = nand_info[0]
 		self.DEVICE_ID = nand_info[1]
@@ -169,6 +174,9 @@ class NANDFlasher(TeensySerial):
 		self.NAND_NBLOCKS = (nand_info[16] << 24) | (nand_info[17] << 16) | (nand_info[18] << 8) | nand_info[19]
 		self.NAND_NPLANES = nand_info[20]
 		self.NAND_PLANE_SZ = (nand_info[21] << 24) | (nand_info[22] << 16) | (nand_info[23] << 8) | nand_info[24]
+
+		
+		print (f"NAND_PAGE_SZ: {self.NAND_PAGE_SZ} NAND_RAS: {self.NAND_RAS} NAND_BUS_WIDTH: {self.NAND_BUS_WIDTH} NAND_BLOCK_SZ: {self.NAND_BLOCK_SZ} NAND_NBLOCKS: {self.NAND_NBLOCKS} NAND_NPLANES: {self.NAND_NPLANES} NAND_PLANE_SZ: {self.NAND_PLANE_SZ}")
 
 		if (self.NAND_PAGE_SZ <= 0):
 			print()
@@ -202,34 +210,40 @@ class NANDFlasher(TeensySerial):
 
 		print()
 		if self.MF_ID == 0xEC:
-			print("NAND chip manufacturer: Samsung (0x%02x)"%self.MF_ID)
+			print("NAND chip manufacturer: Samsung (0x%02X)"%self.MF_ID)
 			if self.DEVICE_ID == 0xA1:
-				print("NAND chip type:         K9F1G08R0A (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         K9F1G08R0A (0x%02X)"%self.DEVICE_ID)
 			elif self.DEVICE_ID == 0xD5:
-				print("NAND chip type:         K9GAG08U0M (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         K9GAG08U0M (0x%02X)"%self.DEVICE_ID)
 			elif self.DEVICE_ID == 0xF1:
-				print("NAND chip type:         K9F1G08U0A (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         K9F1G08U0A (0x%02X)"%self.DEVICE_ID)
 			elif self.DEVICE_ID == 0x79:
-				print("NAND chip type:         K9T1G08U0M (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         K9T1G08U0M (0x%02X)"%self.DEVICE_ID)
 			elif self.DEVICE_ID == 0xDA:
-				print("NAND chip type:         K9F2G08U0M (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         K9F2G08U0M (0x%02X)"%self.DEVICE_ID)
 			else:
-				print("NAND chip type:         unknown (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         unknown (0x%02X)"%self.DEVICE_ID)
 		elif self.MF_ID == 0xAD:
-			print("NAND chip manufacturer: Hynix (0x%02x)"%self.MF_ID)
+			print("NAND chip manufacturer: Hynix (0x%02X)"%self.MF_ID)
 			if self.DEVICE_ID == 0x73:
-				print("NAND chip type:         HY27US08281A (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         HY27US08281A (0x%02X)"%self.DEVICE_ID)
 			elif self.DEVICE_ID == 0xD7:
-				print("NAND chip type:         H27UBG8T2A (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         H27UBG8T2A (0x%02X)"%self.DEVICE_ID)
 			elif self.DEVICE_ID == 0xDA:
-				print("NAND chip type:         HY27UF082G2B (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         HY27UF082G2B (0x%02X)"%self.DEVICE_ID)
 			elif self.DEVICE_ID == 0xDC:
-				print("NAND chip type:         H27U4G8F2D (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         H27U4G8F2D (0x%02X)"%self.DEVICE_ID)
 			else:
-				print("NAND chip type:         unknown (0x%02x)"%self.DEVICE_ID)
+				print("NAND chip type:         unknown (0x%02X)"%self.DEVICE_ID)
+		elif self.MF_ID == 0x98:
+			print("NAND chip manufacturer: Toshiba (0x%02X)"%self.MF_ID)
+			if self.DEVICE_ID == 0xEA:
+				print("NAND chip type:         TC58V16BDC (0x%02X)"%self.DEVICE_ID)
+			else:
+				print("NAND chip type:         unknown (0x%02X)"%self.DEVICE_ID)
 		else:
-			print("NAND chip manufacturer: unknown (0x%02x)"%self.MF_ID)
-			print("NAND chip type:         unknown (0x%02x)"%self.DEVICE_ID)
+			print("NAND chip manufacturer: unknown (0x%02X)"%self.MF_ID)
+			print("NAND chip type:         unknown (0x%02X)"%self.DEVICE_ID)
 			#self.MF_ID = 0
 			#self.DEVICE_ID = 0
 			#return
@@ -386,7 +400,7 @@ class NANDFlasher(TeensySerial):
 
 		# verification
 		if verify == 1:
-			pagenr = 0;
+			pagenr = 0
 			while pagenr < self.NAND_PAGES_PER_BLOCK:
 				real_pagenr = (pgblock * self.NAND_PAGES_PER_BLOCK) + pagenr
 				if data[pagenr*self.NAND_PAGE_SZ_PLUS_RAS:(pagenr+1)*self.NAND_PAGE_SZ_PLUS_RAS] != self.readpage(real_pagenr):

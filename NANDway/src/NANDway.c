@@ -16,7 +16,7 @@ see file COPYING or http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
 #include "uart_serial.h"
 //#include "clz_ctz.h"
 
-#define ENABLE_UART_DEBUG_OUTPUT 1
+#define ENABLE_UART_DEBUG_OUTPUT 0
 #if ENABLE_UART_DEBUG_OUTPUT
 	#define DEBUG_LOG(string) UART_tx_str(string)
 #else
@@ -444,6 +444,14 @@ uint8_t nand_read_id(nand_port *nandp)
 		nandp->info.plane_size = 1UL << 25;
 		nandp->info.bus_width = 8;
 	}
+	else if ((maker_code == 0x98) && (device_code == 0xEA)) { // Olympus 2MB Smartmedia Card (Toshiba NAND chip)
+		nandp->info.page_size = 256;
+		nandp->info.block_size = 16UL * nandp->info.page_size;
+		nandp->info.num_planes = 1;
+		nandp->info.oob_size = 8;
+		nandp->info.plane_size = 1UL << 21;
+		nandp->info.bus_width = 8;
+	}
 	else {
 		if ((maker_code == 0xEC) && (device_code == 0xF1)) // Samsung K9F1G08U0A
 			plane_data = 0x40;
@@ -538,6 +546,11 @@ uint8_t nand_read_page(nand_port *nandp) {
 		NAND_IO_SET(nandp, buf_addr[1]);
 		NAND_IO_SET(nandp, buf_addr[2]);
 	}
+	else if ((nandp->info.maker_code == 0x98) && (nandp->info.device_code == 0xEA)) {
+		NAND_IO_SET(nandp, 0);
+		NAND_IO_SET(nandp, buf_addr[0]);
+		NAND_IO_SET(nandp, buf_addr[1]);
+	}
 	else {
 		NAND_IO_SET(nandp, 0);
 		NAND_IO_SET(nandp, 0);
@@ -624,6 +637,11 @@ int8_t nand_write_page(nand_port *nandp) {
 		NAND_IO_SET(nandp, buf_addr[1]);
 		NAND_IO_SET(nandp, buf_addr[2]);
 	}
+	else if ((nandp->info.maker_code == 0x98) && (nandp->info.device_code == 0xEA)) {
+		NAND_IO_SET(nandp, 0);
+		NAND_IO_SET(nandp, buf_addr[0]);
+		NAND_IO_SET(nandp, buf_addr[1]);
+	}
 	else {
 		NAND_IO_SET(nandp, 0);
 		NAND_IO_SET(nandp, 0);
@@ -694,6 +712,10 @@ int8_t nand_erase_block(nand_port *nandp) {
 	/* ALE on & CLE off */ 
 	NAND_ALE_HIGH(nandp);
 	if ((nandp->info.maker_code == 0xAD) && (nandp->info.device_code == 0x73)) {
+		NAND_IO_SET(nandp, buf_addr[0]);
+		NAND_IO_SET(nandp, buf_addr[1]);
+	}
+	else if ((nandp->info.maker_code == 0x98) && (nandp->info.device_code == 0xEA)) {
 		NAND_IO_SET(nandp, buf_addr[0]);
 		NAND_IO_SET(nandp, buf_addr[1]);
 	}
