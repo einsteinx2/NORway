@@ -283,6 +283,11 @@ void releaseports()
 {
 	DDRA = 0; DDRB = 0; DDRC = 0; DDRD = 0; DDRE = 0; DDRF = 0;
 	PORTA = 0; PORTB = 0; PORTC = 0; PORTD = 0; PORTE = 0; PORTF = 0;
+
+#if ENABLE_UART_DEBUG_OUTPUT
+	// Re-initialize UART serial debug output
+	UART_init();
+#endif
 }
 
 uint8_t wait_ryby(nand_port *nandp)
